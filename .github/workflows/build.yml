@@ -1,0 +1,75 @@
+name: Compilar Stockfish para Android
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Etiqueta de la Release (p. ej. sf19-r1)
+        required: true
+        default: sf19-r1
+      create_release:
+        description: Publicar la Release (si no, solo se sube el artefacto)
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+env:
+  NDK_VERSION: r28c
+  NDK_URL: https://dl.google.com/android/repository/android-ndk-r28c-linux.zip
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Descargar el NDK ${{ env.NDK_VERSION }}
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/ndk.zip" "$NDK_URL"
+          sha=$(sha256sum "$RUNNER_TEMP/ndk.zip" | cut -d' ' -f1)
+          echo "SHA256 del NDK: $sha"
+          echo "NDK_ARCHIVE_SHA256=$sha" >> "$GITHUB_ENV"
+          unzip -q "$RUNNER_TEMP/ndk.zip" -d "$RUNNER_TEMP"
+          rm "$RUNNER_TEMP/ndk.zip"
+          echo "ANDROID_NDK_HOME=$RUNNER_TEMP/android-ndk-${NDK_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Compilar (falla si la alineación no es de 16 KB)
+        env:
+          NDK_ARCHIVE_URL: ${{ env.NDK_URL }}
+        run: bash ./build.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stockfish-android-${{ inputs.release_tag }}
+          path: dist/
+          if-no-files-found: error
+
+      - name: Crear la Release
+        if: ${{ inputs.create_release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+        run: |
+          {
+            echo "Stockfish para Android arm64 (Android 10+, API 29), sin red NNUE embebida."
+            echo
+            echo "- \`libstockfish_armv8.so\`: ARCH=armv8"
+            echo "- \`libstockfish_armv8_dotprod.so\`: ARCH=armv8-dotprod (CPU con \`asimddp\`)"
+            echo "- \`nn-*.nnue\`: red NNUE por defecto, a descargar aparte"
+            echo "- \`stockfish-*-src.tar.gz\`: código fuente exacto compilado (GPL-3.0)"
+            echo "- \`build.sh\`, \`build.yml\`: script y workflow de compilación"
+            echo
+            echo '```'
+            cat dist/BUILDINFO.txt
+            echo '```'
+            echo
+            echo '```'
+            cat dist/SHA256SUMS
+            echo '```'
+          } > "$RUNNER_TEMP/notes.md"
+          gh release create "$TAG" dist/* \
+            --target "$GITHUB_SHA" \
+            --title "Stockfish Android $TAG" \
+            --notes-file "$RUNNER_TEMP/notes.md"
