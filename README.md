@@ -42,6 +42,21 @@ ANDROID_NDK_HOME="$PWD/android-ndk-r28c" ./build.sh
 
 El resultado queda en `dist/`.
 
+## Código fuente de Stockfish.js
+
+ChessDissect también distribuye, sin modificar, el motor WebAssembly [Stockfish.js](https://github.com/nmrugg/stockfish.js) (GPL-3.0). Para que su código fuente correspondiente no dependa solo del repositorio original, se publica una copia en Releases `sfjs-<versión>` (por ejemplo `sfjs-18.0.8`):
+
+| Archivo | Contenido |
+|---|---|
+| `stockfish.js-<versión>-src.tar.gz` | Código fuente de la etiqueta `v<versión>` de nmrugg/stockfish.js, con su script de compilación (`build.js`) |
+| `stockfish-<versión>.tgz` | Paquete npm del que salen los `.js` y `.wasm` que incluye la app |
+| `nn-*.nnue` | Red NNUE embebida en los `.wasm` lite (CC0) |
+| `mirror-stockfish-js.sh`, `mirror-stockfish-js.yml` | Script y workflow que generan la Release |
+| `SOURCE.txt` | Commit, versión de Emscripten y qué archivos usa la app |
+| `SHA256SUMS` | Sumas SHA256 de todo lo anterior |
+
+La genera el workflow `.github/workflows/mirror-stockfish-js.yml` (Actions → *Publicar el código fuente de Stockfish.js* → *Run workflow*). El script comprueba que la etiqueta apunta al commit esperado, que el paquete npm coincide con el SHA1 del registro y que la red corresponde a su nombre. En local: `./mirror-stockfish-js.sh` (resultado en `dist-sfjs/`).
+
 ## Licencia
 
 Stockfish se distribuye bajo la GNU General Public License v3.0; ver [COPYING](COPYING). Los scripts de este repositorio se publican bajo la misma licencia.

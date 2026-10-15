@@ -1,0 +1,71 @@
+name: Publicar el código fuente de Stockfish.js
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Versión de Stockfish.js (etiqueta v<versión> y paquete npm)
+        required: true
+        default: 18.0.8
+      commit:
+        description: Commit que debe tener la etiqueta
+        required: true
+        default: 93c994592dcf3b4b21052ab925e9b534df9c0918
+      net:
+        description: Red NNUE embebida en los .wasm lite
+        required: true
+        default: nn-9067e33176e8
+      create_release:
+        description: Publicar la Release (si no, solo se sube el artefacto)
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reunir código fuente, paquete npm y red
+        env:
+          SFJS_VERSION: ${{ inputs.version }}
+          SFJS_COMMIT: ${{ inputs.commit }}
+          SFJS_NET: ${{ inputs.net }}
+        run: bash ./mirror-stockfish-js.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stockfish-js-${{ inputs.version }}
+          path: dist-sfjs/
+          if-no-files-found: error
+
+      - name: Crear la Release
+        if: ${{ inputs.create_release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: sfjs-${{ inputs.version }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          {
+            echo "Código fuente correspondiente de Stockfish.js $VERSION, el motor WebAssembly que ChessDissect distribuye sin modificar (GPL-3.0)."
+            echo
+            echo "- \`stockfish.js-$VERSION-src.tar.gz\`: código fuente de la etiqueta v$VERSION de nmrugg/stockfish.js, con su script de compilación"
+            echo "- \`stockfish-$VERSION.tgz\`: paquete npm del que salen los .js y .wasm que incluye la app"
+            echo "- \`nn-*.nnue\`: red NNUE embebida en los .wasm lite (CC0)"
+            echo "- \`mirror-stockfish-js.sh\`, \`mirror-stockfish-js.yml\`: script y workflow que generan esta Release"
+            echo
+            echo '```'
+            cat dist-sfjs/SOURCE.txt
+            echo '```'
+            echo
+            echo '```'
+            cat dist-sfjs/SHA256SUMS
+            echo '```'
+          } > "$RUNNER_TEMP/notes.md"
+          gh release create "$TAG" dist-sfjs/* \
+            --target "$GITHUB_SHA" \
+            --title "Stockfish.js $VERSION (código fuente)" \
+            --notes-file "$RUNNER_TEMP/notes.md"
